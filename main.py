@@ -1,8 +1,14 @@
+import shutil
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
+import os
+from pydub import AudioSegment
+import pyttsx3
 from PIL import Image, ImageTk
 from customtkinter import CTkButton
+from pdfreader import SimplePDFViewer
 import pygame.mixer
+import logging
 
 # Initialize pygame.mixer
 pygame.mixer.init()
@@ -14,38 +20,134 @@ DARK_PURPLE = "#643843"
 MEDIUM_PURPLE = "#85586F"
 LIGHT_PURPLE = "#AC7D88"
 FONT_NAME = "Arial"
+WAV_FILE_NAME = "./PDF_to_Speech.wav"
+MP3_FILE_PATH = "./PDF_to_Speech.mp3"
+
+# ------------------------ GLOBAL VARIABLES ----------------------------- #
+
+pdf_file_path = ""
+file_document = None
+download_successful_label = None
+
 
 # ---------------------------- FUNCTIONS ------------------------------- #
+
+def center_window(window, width, height):
+    """
+        Centers the Tkinter window on the screen.
+    """
+    # Get screen width and height
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+
+    # Calculate position window
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2
+
+    # Set window position
+    window.geometry(f"{width}x{height}+{x}+{y}")
+
 def get_text_from_pdf():
-    pass
+    """
+        Retrieve text content from the PDF document.
+    """
+    global file_document
+    viewer = SimplePDFViewer(file_document)
+    viewer.render()
+    string_list = viewer.canvas.strings
+    final_text = ""
+    for line in string_list:
+        final_text += line + " "
+    return final_text
 
 
 def convert_text_to_speech():
-    pass
+    """
+        Convert text from PDF to speech and save it as a WAV file.
+    """
+    text = get_text_from_pdf()
+    engine = pyttsx3.init()
+    engine.setProperty("voice", r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech\Voices\Tokens\TTS_MS_EN-US_ZIRA_11.0")
+
+    try:
+        # Save text to speech as WAV
+        engine.save_to_file(text, WAV_FILE_NAME)
+        engine.runAndWait()
+
+        # Show audio controls and hide convert button
+        audio_image_canvas.grid(column=1, row=4, pady=20, rowspan=3)
+        convert_button.grid_forget()
+        play_button.grid(row=4, column=2)
+        stop_button.grid(row=5, column=2)
+        download_button.grid(row=6, column=2)
+    except Exception as e:
+        logging.error(f"Error occurred while saving speech to file: {e}")
 
 
 def choose_filepath(event):
-    pass
+    """
+        Open file dialog to choose PDF file path.
+    """
+    global pdf_file_path
+    selected_filepath = filedialog.askopenfilename()
+    if selected_filepath:
+        file_path_entry_field.delete(0, tk.END)
+        file_path_entry_field.insert(0, selected_filepath)
+        pdf_file_path = selected_filepath
 
 
 def upload_pdf():
-    pass
+    """
+        Upload PDF file and display its icon.
+    """
+    global pdf_file_path, file_document
+    if pdf_file_path:
+        file_document = open(pdf_file_path, "rb")
+        pdf_image_canvas.grid(column=1, row=1, pady=20)
 
 
 def play_audio():
-    pass
+    """
+        Play the audio from the WAV file.
+    """
+    sound = pygame.mixer.Sound(WAV_FILE_NAME)
+    sound.play()
 
 
 def stop_audio():
-    pass
+    """
+        Stop the currently playing audio.
+    """
+    pygame.mixer.stop()
 
 
 def convert_wav_to_mp3():
-    pass
+    """
+        Convert the WAV file to MP3 format.
+    """
+    sound = AudioSegment.from_wav(WAV_FILE_NAME)
+    sound.export(MP3_FILE_PATH, format="mp3")
 
 
 def download():
-    pass
+    """
+        Download the converted audio as an MP3 file.
+    """
+    global download_successful_label
+    try:
+        convert_wav_to_mp3()
+        filename = os.path.basename(MP3_FILE_PATH)
+        destination_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+        destination_file_path = os.path.join(destination_dir, filename)
+        shutil.copy2(MP3_FILE_PATH, destination_file_path)
+        download_successful_label = tk.Label(text=f"Audio file downloaded to: Downloads", fg=DARK_PURPLE, bg=BEIGE,
+                                             font=(FONT_NAME, 8))
+        download_successful_label.grid(row=7, column=2)
+        # delete the WAV and MP§ file after downloading
+        # os.remove(WAV_FILE_NAME)
+        # os.remove(MP3_FILE_PATH)
+    except Exception as e:
+        print(f"An error occurred during download: {e}")
 
 
 # ---------------------------- UI SETUP ------------------------------- #
@@ -53,8 +155,8 @@ def download():
 # CREATE A WINDOW
 window = tk.Tk()
 window.title("PDF To Speech Converter")
-window.geometry("800x600")
 window.config(padx=25, pady=25, bg=BEIGE)
+center_window(window, 800, 600)
 
 # CREATE CUSTOM STYLE FOR ENTRY WIDGET
 style = ttk.Style()
